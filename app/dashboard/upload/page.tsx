@@ -19,12 +19,12 @@ interface ProcessingStep {
 const UploadPage = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string>("");
-  const [sessionId, setSessionId] = useState<string>("");
+  // Removed unused sessionId state
   const [isProcessing, setIsProcessing] = useState(false);
   const [finalResult, setFinalResult] = useState<string>("");
   const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
-  const [processingLogs, setProcessingLogs] = useState<string[]>([]);
+  // const [processingLogs, setProcessingLogs] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,12 +55,12 @@ const UploadPage = () => {
     },
   ];
 
-  const addLog = (message: string) => {
-    setProcessingLogs((prev) => [
-      ...prev,
-      `${new Date().toLocaleTimeString()}: ${message}`,
-    ]);
-  };
+  // const addLog = (message: string) => {
+  //   setProcessingLogs((prev) => [
+  //     ...prev,
+  //     `${new Date().toLocaleTimeString()}: ${message}`,
+  //   ]);
+  // };
 
   const updateStep = (
     stepIndex: number,
@@ -105,7 +105,7 @@ const UploadPage = () => {
       setUploadedFile(file);
       setFilePreview(URL.createObjectURL(file));
       setProcessingSteps(initialSteps);
-      setProcessingLogs([]);
+      // setProcessingLogs([]);
       setFinalResult("");
     },
     []
@@ -115,7 +115,7 @@ const UploadPage = () => {
     if (!uploadedFile) throw new Error("No file uploaded");
 
     updateStep(0, "processing", 25);
-    addLog("Uploading file to NVIDIA API...");
+    // addLog("Uploading file to NVIDIA API...");
 
     const formData = new FormData();
     formData.append("mediaFiles", uploadedFile);
@@ -135,11 +135,10 @@ const UploadPage = () => {
       throw new Error("No session ID received from API");
     }
 
-    // Update state for UI purposes
-    setSessionId(uploadData.sessionId);
+
 
     updateStep(0, "processing", 50);
-    addLog("File uploaded successfully, generating summary...");
+    // addLog("File uploaded successfully, generating summary...");
 
     const summaryResponse = await fetch("/api/process-media?action=chat", {
       method: "POST",
@@ -170,14 +169,14 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
     const summary = summaryData.choices?.[0]?.message?.content || "";
 
     updateStep(0, "completed", 100);
-    addLog("Summary generated successfully");
+    // addLog("Summary generated successfully");
 
     return { summary, sessionId: uploadData.sessionId };
   };
 
   const generateQuestions = async (summary: string): Promise<string[]> => {
     updateStep(1, "processing", 50);
-    addLog("Generating detailed analysis questions...");
+    // addLog("Generating detailed analysis questions...");
 
     const response = await fetch("/api/openai-questions", {
       method: "POST",
@@ -196,7 +195,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
     const questions = data.questions || [];
 
     updateStep(1, "completed", 100);
-    addLog(`Generated ${questions.length} analysis questions`);
+    // addLog(`Generated ${questions.length} analysis questions`);
 
     return questions;
   };
@@ -206,7 +205,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
     sessionId: string // Accept sessionId as parameter
   ): Promise<string[]> => {
     updateStep(2, "processing", 0);
-    addLog("Starting detailed measurement analysis...");
+    // addLog("Starting detailed measurement analysis...");
 
     const answers: string[] = [];
 
@@ -215,12 +214,12 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
       const progress = ((i + 1) / questions.length) * 100;
 
       updateStep(2, "processing", progress);
-      addLog(
-        `Analyzing question ${i + 1}/${questions.length}: ${question.substring(
-          0,
-          50
-        )}...`
-      );
+      // addLog(
+      //   `Analyzing question ${i + 1}/${questions.length}: ${question.substring(
+      //     0,
+      //     50
+      //   )}...`
+      // );
 
       try {
         const response = await fetch("/api/process-media?action=chat", {
@@ -250,7 +249,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
     }
 
     updateStep(2, "completed", 100);
-    addLog("Detailed analysis completed");
+    // addLog("Detailed analysis completed");
 
     return answers;
   };
@@ -261,7 +260,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
     answers: string[]
   ): Promise<string> => {
     updateStep(3, "processing", 50);
-    addLog("Formatting final measurements...");
+    // addLog("Formatting final measurements...");
 
     const qaData = questions.map((q, i) => ({
       question: q,
@@ -283,7 +282,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
       data.result || "No measurements could be determined";
 
     updateStep(3, "completed", 100);
-    addLog("Final formatting completed");
+    // addLog("Final formatting completed");
 
     return formattedResult;
   };
@@ -308,7 +307,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
       const result = await formatFinalResult(questions, answers);
 
       setFinalResult(result);
-      addLog("Analysis completed successfully!");
+      // addLog("Analysis completed successfully!");
 
       // Save to localStorage
       const analysisData = {
@@ -325,7 +324,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
       localStorage.setItem("analyses", JSON.stringify(existingAnalyses));
     } catch (error) {
       console.error("Analysis error:", error);
-      addLog(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      // addLog(`Error: ${error instanceof Error ? error.message : String(error)}`);
       updateStep(currentStep, "error", 0);
     } finally {
       setIsProcessing(false);
@@ -333,7 +332,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
   };
 
   const isVideo = uploadedFile?.type.startsWith("video");
-  const isImage = uploadedFile?.type.startsWith("image");
+  // const isImage = uploadedFile?.type.startsWith("image");
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -449,7 +448,7 @@ Format the summary into approximately 50 concise but detailed lines, covering ev
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {processingSteps.map((step, index) => (
+                  {processingSteps.map((step) => (
                     <div key={step.id} className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span

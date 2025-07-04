@@ -66,6 +66,7 @@ Example format:
         return NextResponse.json({ questions });
       }
     } catch (parseError) {
+      console.error(parseError instanceof Error && parseError.message);
       // If JSON parsing fails, extract questions from text
       const lines = responseContent.split("\n");
       const questions = lines

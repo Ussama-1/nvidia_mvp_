@@ -10,7 +10,7 @@ interface ChatCompletion {
     index: number;
     message: {
       role: string;
-      content: string;
+      content: string | null;
     };
     finish_reason: string;
   }>;

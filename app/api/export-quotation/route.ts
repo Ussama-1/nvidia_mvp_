@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   try {
     const {
       quotation,
-      videoName,
+     
     }: { quotation: QuotationData; videoName: string } = await request.json();
 
     if (!quotation) {
@@ -54,13 +54,17 @@ export async function POST(request: NextRequest) {
 
       await browser.close();
 
-      return new NextResponse(pdfBuffer, {
+      // Convert Buffer/Uint8Array to ReadableStream for NextResponse
+      const { Readable } = await import("stream");
+      const stream = Readable.from(pdfBuffer);
+
+      return new NextResponse(stream as unknown as ReadableStream<Uint8Array>, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="quotation-${Date.now()}.pdf"`,
         },
       });
-    } catch (puppeteerError) {
+    } catch {
       // Fallback to HTML download
       const htmlContent = generateProfessionalHTML(quotation);
       return new NextResponse(htmlContent, {

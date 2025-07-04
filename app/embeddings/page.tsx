@@ -54,7 +54,7 @@ export default function EmbeddingsPage() {
 
   const handleCopy = () => {
     if (response) {
-      navigator.clipboard.write(JSON.stringify(response, null, 2));
+      navigator.clipboard.writeText(JSON.stringify(response, null, 2));
       alert('Response copied to clipboard!');
     }
   };

@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     const responseContent = completion.choices[0]?.message?.content || "";
 
     // Parse the response to extract pricing information
-    const pricingData = parsePricingResponse(responseContent, material, unit);
+    const pricingData = parsePricingResponse(responseContent);
 
     return NextResponse.json(pricingData);
   } catch (error) {
@@ -86,8 +86,7 @@ export async function POST(request: NextRequest) {
 
 function parsePricingResponse(
   response: string,
-  material: string,
-  unit: string
+
 ): PricingResponse {
   try {
     // Try to parse JSON response first
@@ -102,6 +101,7 @@ function parsePricingResponse(
       };
     }
   } catch (e) {
+    console.error(e instanceof Error && e.message)
     // If JSON parsing fails, extract pricing from text
   }
 

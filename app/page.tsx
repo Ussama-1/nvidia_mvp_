@@ -298,7 +298,7 @@ const MeasurementAnalyzer = () => {
   };
 
   const isVideo = uploadedFile?.type.startsWith("video");
-  const isImage = uploadedFile?.type.startsWith("image");
+  // const isImage = uploadedFile?.type.startsWith("image");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -410,19 +410,18 @@ const MeasurementAnalyzer = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {processingSteps.map((step, index) => (
+                  {processingSteps.map((step) => (
                     <div key={step.id} className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span
-                          className={`font-medium ${
-                            step.status === "completed"
+                          className={`font-medium ${step.status === "completed"
                               ? "text-green-600"
                               : step.status === "processing"
-                              ? "text-blue-600"
-                              : step.status === "error"
-                              ? "text-red-600"
-                              : "text-gray-500"
-                          }`}
+                                ? "text-blue-600"
+                                : step.status === "error"
+                                  ? "text-red-600"
+                                  : "text-gray-500"
+                            }`}
                         >
                           {step.name}
                         </span>

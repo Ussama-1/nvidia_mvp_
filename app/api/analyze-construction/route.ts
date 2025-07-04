@@ -81,9 +81,9 @@ Be very detailed and count individual items where possible.`,
   return data.choices?.[0]?.message?.content || "";
 }
 
-async function processWithLlama(analysis: string): Promise<any[]> {
+async function processWithLlama(analysis: string): Promise<Material[]> {
   const response = await fetch(
-    `${"http://localhost:3001"}/api/chat?prompt=${encodeURIComponent(`
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/chat?prompt=${encodeURIComponent(`
 Extract structured material data from this construction analysis:
 
 ${analysis}
@@ -101,8 +101,8 @@ Format as a clear list. Only include items that have clear quantities mentioned.
   return extractMaterialsFromText(data.content || analysis);
 }
 
-function extractMaterialsFromText(text: string): any[] {
-  const materials: any[] = [];
+function extractMaterialsFromText(text: string): Material[] {
+  const materials: Material[] = [];
   const lines = text.split("\n");
 
   for (const line of lines) {
@@ -138,6 +138,8 @@ function extractMaterialsFromText(text: string): any[] {
             name: cleanMaterialName(name),
             quantity,
             unit: standardizeUnit(unit),
+            unitPrice: 0,
+            totalPrice: 0,
           });
           break;
         }
@@ -181,7 +183,7 @@ function standardizeUnit(unit: string): string {
   return unitMap[unit.toLowerCase()] || unit;
 }
 
-async function getPricingForMaterials(materials: any[]): Promise<Material[]> {
+async function getPricingForMaterials(materials: Material[]): Promise<Material[]> {
   const pricedMaterials: Material[] = [];
 
   for (const material of materials) {

@@ -100,7 +100,7 @@ const chatWithMediaNvcf = async (
   sessionData: SessionData,
   query: string,
   stream: boolean
-): Promise<any> => {
+): Promise<unknown> => {
   const assetSeq = sessionData.assetList.join(",");
   console.log(`received asset_id list: ${assetSeq}`);
 
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
       );
 
       if (stream) {
-        return new NextResponse(result, {
+        return new NextResponse(typeof result === "string" ? result : JSON.stringify(result), {
           headers: {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",

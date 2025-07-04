@@ -114,7 +114,7 @@ export default function RerankingPage() {
 
   const handleCopy = () => {
     if (response) {
-      navigator.clipboard.write(JSON.stringify(response, null, 2));
+      navigator.clipboard.writeText(JSON.stringify(response, null, 2));
       showToast("Response copied to clipboard!", "success");
     }
   };
