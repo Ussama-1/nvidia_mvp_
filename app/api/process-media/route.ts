@@ -42,7 +42,10 @@ const mimeType = (ext: string): string => kSupportedList[ext]?.[0] ?? "";
 
 const mediaType = (ext: string): string => kSupportedList[ext]?.[1] ?? "";
 
-const uploadAsset = async (file: File, description: string): Promise<string> => {
+const uploadAsset = async (
+  file: File,
+  description: string
+): Promise<string> => {
   const ext = getExtension(file.name);
   if (!(ext in kSupportedList)) {
     throw new Error(`Unsupported file extension: ${ext}`);
@@ -118,7 +121,7 @@ const chatWithMediaNvcf = async (
 
   const payload = {
     max_tokens: 1024,
-    temperature: 0.6,
+    temperature: 1,
     top_p: 0.7,
     seed: 50,
     num_frames_per_inference: 8,
@@ -145,7 +148,7 @@ export async function POST(request: NextRequest) {
     if (contentType.includes("multipart/form-data") && !action) {
       const formData = await request.formData();
       const mediaFiles = formData.getAll("mediaFiles") as File[];
-      
+
       if (!mediaFiles || mediaFiles.length === 0) {
         return NextResponse.json(
           { error: "No media files provided" },
@@ -182,7 +185,9 @@ export async function POST(request: NextRequest) {
         throw new Error("Only a single video is supported.");
       }
 
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const sessionId = `session_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
       sessions.set(sessionId, {
         assetList,
         extList,
@@ -191,9 +196,9 @@ export async function POST(request: NextRequest) {
         hasVideo,
       });
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         sessionId,
-        message: "Files uploaded successfully" 
+        message: "Files uploaded successfully",
       });
     }
 
@@ -202,7 +207,9 @@ export async function POST(request: NextRequest) {
       const body = await request.json();
       const { sessionId, query, stream = false } = body;
 
-      if (!sessionId || !sessions.has(sessionId)) {
+
+      console.log(sessionId,"session iddd")
+      if (!sessionId) {
         return NextResponse.json(
           { error: "Invalid or expired session" },
           { status: 400 }
@@ -217,7 +224,7 @@ export async function POST(request: NextRequest) {
       }
 
       const sessionData = sessions.get(sessionId)!;
-      
+
       const result = await chatWithMediaNvcf(
         invokeUrl,
         sessionData,
@@ -245,7 +252,7 @@ export async function POST(request: NextRequest) {
 
       if (sessionId && sessions.has(sessionId)) {
         const sessionData = sessions.get(sessionId)!;
-        
+
         console.log(`deleting assets: ${sessionData.assetList}`);
         for (const assetId of sessionData.assetList) {
           try {
@@ -254,11 +261,11 @@ export async function POST(request: NextRequest) {
             console.error(`Failed to delete asset ${assetId}:`, error);
           }
         }
-        
+
         sessions.delete(sessionId);
         return NextResponse.json({ success: true });
       }
-      
+
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 

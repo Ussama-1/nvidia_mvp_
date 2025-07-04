@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log('Initiating chat completion with prompt:', prompt); // Debug log
-    const completion: ChatCompletion = await openai.chat.completions.create({
+    console.log('Initiating chat completion with prompt:', prompt); 
+    const completion:ChatCompletion = await openai.chat.completions.create({
       model: 'meta/llama-3.1-70b-instruct',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.2,

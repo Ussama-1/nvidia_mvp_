@@ -1,12 +1,13 @@
 "use client";
 
 import type React from "react";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Upload, Video, ImageIcon, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { useRouter } from "next/navigation";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 
 interface ProcessingStep {
   id: string;
@@ -15,7 +16,7 @@ interface ProcessingStep {
   progress: number;
 }
 
-const MeasurementAnalyzer = () => {
+const UploadPage = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string>("");
   const [sessionId, setSessionId] = useState<string>("");
@@ -26,11 +27,6 @@ const MeasurementAnalyzer = () => {
   const [processingLogs, setProcessingLogs] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const router = useRouter();
-  useEffect(() => {
-    router.push("/dashboard/upload");
-  }, [router]);
 
   const initialSteps: ProcessingStep[] = [
     {
@@ -111,18 +107,16 @@ const MeasurementAnalyzer = () => {
       setProcessingSteps(initialSteps);
       setProcessingLogs([]);
       setFinalResult("");
-      setSessionId("");
     },
     []
   );
 
-  const uploadAndSummarize = async (): Promise<string> => {
+  const uploadAndSummarize = async (): Promise<{ summary: string; sessionId: string }> => {
     if (!uploadedFile) throw new Error("No file uploaded");
 
     updateStep(0, "processing", 25);
     addLog("Uploading file to NVIDIA API...");
 
-    // Upload file
     const formData = new FormData();
     formData.append("mediaFiles", uploadedFile);
 
@@ -136,32 +130,49 @@ const MeasurementAnalyzer = () => {
     }
 
     const uploadData = await uploadResponse.json();
+
+    if (!uploadData.sessionId) {
+      throw new Error("No session ID received from API");
+    }
+
+    // Update state for UI purposes
     setSessionId(uploadData.sessionId);
 
     updateStep(0, "processing", 50);
     addLog("File uploaded successfully, generating summary...");
 
-    // Get summary
-
-    console.log("Session ID:", uploadData.sessionId);
     const summaryResponse = await fetch("/api/process-media?action=chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId: uploadData.sessionId,
+        sessionId: uploadData.sessionId, // Use fresh sessionId
         query:
-          "Summarize this video/image focusing on any visible measurements, dimensions, construction elements, rooms, walls, floors, ceilings, or any structural components that could be measured.",
+          `ou are an expert visual analyst. Your task is to deeply observe and meticulously summarize the content of the provided video or image. Your summary must include:
+
+A comprehensive list of all objects, people, and key elements visible (e.g., doors, windows, walls, furniture, decorations, colors, textures, lighting).
+
+Detailed descriptions of actions, movements, and interactions between objects or people, if present.
+
+Descriptions of the setting, environment, and atmosphere (e.g., indoor/outdoor, weather, time of day, mood).
+
+Any text, symbols, logos, or signage visible and their possible significance.
+
+Inferred context, purpose, or meaning based on visual clues (e.g., is it a home, office, store, event?).
+
+Emotional tone if detectable from expressions, actions, or atmosphere.
+
+Format the summary into approximately 50 concise but detailed lines, covering every noticeable detail without missing any significant element.`,
         stream: false,
       }),
     });
 
     const summaryData = await summaryResponse.json();
     const summary = summaryData.choices?.[0]?.message?.content || "";
-    console.log("Summary:", summary);
+
     updateStep(0, "completed", 100);
     addLog("Summary generated successfully");
 
-    return summary;
+    return { summary, sessionId: uploadData.sessionId };
   };
 
   const generateQuestions = async (summary: string): Promise<string[]> => {
@@ -191,7 +202,8 @@ const MeasurementAnalyzer = () => {
   };
 
   const analyzeWithQuestions = async (
-    questions: string[]
+    questions: string[],
+    sessionId: string // Accept sessionId as parameter
   ): Promise<string[]> => {
     updateStep(2, "processing", 0);
     addLog("Starting detailed measurement analysis...");
@@ -210,23 +222,31 @@ const MeasurementAnalyzer = () => {
         )}...`
       );
 
-      const response = await fetch("/api/process-media?action=chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          query: question,
-          stream: false,
-        }),
-      });
+      try {
+        const response = await fetch("/api/process-media?action=chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId, // Use passed sessionId
+            query: question,
+            stream: false,
+          }),
+        });
 
-      const data = await response.json();
-      const answer =
-        data.choices?.[0]?.message?.content || "No answer available";
-      answers.push(answer);
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.status}`);
+        }
 
-      // Small delay to avoid overwhelming the API
-      await new Promise((resolve) => setTimeout(resolve, 500));
+        const data = await response.json();
+        const answer =
+          data.choices?.[0]?.message?.content || "No answer available";
+        answers.push(answer);
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } catch (error) {
+        console.error(`Error processing question ${i + 1}:`, error);
+        answers.push("Error processing this question");
+      }
     }
 
     updateStep(2, "completed", 100);
@@ -234,6 +254,7 @@ const MeasurementAnalyzer = () => {
 
     return answers;
   };
+
 
   const formatFinalResult = async (
     questions: string[],
@@ -274,23 +295,37 @@ const MeasurementAnalyzer = () => {
     setCurrentStep(0);
 
     try {
-      // Step 1: Upload and summarize
-      const summary = await uploadAndSummarize();
+      // Step 1: Upload and summarize - get sessionId directly
+      const { summary, sessionId: freshSessionId } = await uploadAndSummarize();
 
       // Step 2: Generate questions
       const questions = await generateQuestions(summary);
 
-      // Step 3: Analyze with questions
-      const answers = await analyzeWithQuestions(questions);
+      // Step 3: Analyze with questions - pass sessionId explicitly
+      const answers = await analyzeWithQuestions(questions, freshSessionId);
 
       // Step 4: Format final result
       const result = await formatFinalResult(questions, answers);
 
       setFinalResult(result);
       addLog("Analysis completed successfully!");
+
+      // Save to localStorage
+      const analysisData = {
+        fileName: uploadedFile.name,
+        result,
+        timestamp: new Date().toISOString(),
+        sessionId: freshSessionId,
+      };
+
+      const existingAnalyses = JSON.parse(
+        localStorage.getItem("analyses") || "[]"
+      );
+      existingAnalyses.push(analysisData);
+      localStorage.setItem("analyses", JSON.stringify(existingAnalyses));
     } catch (error) {
       console.error("Analysis error:", error);
-      addLog(`Error: ${error}`);
+      addLog(`Error: ${error instanceof Error ? error.message : String(error)}`);
       updateStep(currentStep, "error", 0);
     } finally {
       setIsProcessing(false);
@@ -301,21 +336,24 @@ const MeasurementAnalyzer = () => {
   const isImage = uploadedFile?.type.startsWith("image");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              Construction Measurement Analyzer
-            </h1>
-            <p className="text-gray-600 text-lg">
-              AI-powered measurement extraction from videos and images
-            </p>
-          </div>
+    <div className="flex-1 flex flex-col h-full">
+      {/* Header */}
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <div className="flex flex-col">
+          <h1 className="text-lg font-semibold">Upload & Analyze</h1>
+          <p className="text-sm text-muted-foreground hidden sm:block">
+            AI-powered measurement extraction from videos and images
+          </p>
+        </div>
+      </header>
 
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="container mx-auto px-4 py-6 max-w-6xl">
           {/* Upload Section */}
-          <Card className="mb-8">
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Upload className="w-5 h-5" />
@@ -334,16 +372,16 @@ const MeasurementAnalyzer = () => {
               {!uploadedFile ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-12 cursor-pointer hover:border-blue-400 transition-colors text-center"
+                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 lg:p-12 cursor-pointer hover:border-blue-400 transition-colors text-center"
                 >
-                  <div className="flex justify-center gap-4 mb-4">
-                    <Video className="w-16 h-16 text-gray-400" />
-                    <ImageIcon className="w-16 h-16 text-gray-400" />
+                  <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
+                    <Video className="w-14 h-14 lg:w-16 lg:h-16 text-gray-400" />
+                    <ImageIcon className="w-14 h-14 lg:w-16 lg:h-16 text-gray-400" />
                   </div>
                   <h3 className="text-xl font-semibold text-gray-700 mb-2">
                     Upload Video or Image
                   </h3>
-                  <p className="text-gray-500 mb-4">
+                  <p className="text-gray-500 mb-4 max-w-md mx-auto">
                     Select a construction video or image for measurement
                     analysis
                   </p>
@@ -365,11 +403,11 @@ const MeasurementAnalyzer = () => {
                       <img
                         src={filePreview || "/placeholder.svg"}
                         alt="Uploaded"
-                        className="w-full max-w-2xl mx-auto rounded-lg"
+                        className="w-full max-w-2xl mx-auto rounded-lg object-contain max-h-96"
                       />
                     )}
                     <div className="mt-4 text-center">
-                      <p className="font-medium text-gray-700">
+                      <p className="font-medium text-gray-700 truncate">
                         {uploadedFile.name}
                       </p>
                       <p className="text-gray-500 text-sm">
@@ -383,6 +421,7 @@ const MeasurementAnalyzer = () => {
                       onClick={startAnalysis}
                       disabled={isProcessing}
                       size="lg"
+                      className="w-full sm:w-auto"
                     >
                       {isProcessing ? (
                         <>
@@ -404,7 +443,7 @@ const MeasurementAnalyzer = () => {
 
           {/* Processing Steps */}
           {isProcessing && (
-            <Card className="mb-8">
+            <Card className="mb-6">
               <CardHeader>
                 <CardTitle>Analysis Progress</CardTitle>
               </CardHeader>
@@ -414,20 +453,19 @@ const MeasurementAnalyzer = () => {
                     <div key={step.id} className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span
-                          className={`font-medium ${
-                            step.status === "completed"
-                              ? "text-green-600"
-                              : step.status === "processing"
+                          className={`font-medium ${step.status === "completed"
+                            ? "text-green-600"
+                            : step.status === "processing"
                               ? "text-blue-600"
                               : step.status === "error"
-                              ? "text-red-600"
-                              : "text-gray-500"
-                          }`}
+                                ? "text-red-600"
+                                : "text-gray-500"
+                            }`}
                         >
                           {step.name}
                         </span>
                         <span className="text-sm text-gray-500">
-                          {step.progress}%
+                          {Math.round(step.progress)}%
                         </span>
                       </div>
                       <Progress value={step.progress} className="w-full" />
@@ -439,22 +477,25 @@ const MeasurementAnalyzer = () => {
           )}
 
           {/* Processing Logs */}
-          {processingLogs.length > 0 && (
-            <Card className="mb-8">
+          {/* {processingLogs.length > 0 && (
+            <Card className="mb-6">
               <CardHeader>
                 <CardTitle>Processing Log</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="bg-gray-50 rounded-lg p-4 max-h-40 overflow-y-auto">
                   {processingLogs.map((log, index) => (
-                    <div key={index} className="text-sm text-gray-600 mb-1">
+                    <div
+                      key={index}
+                      className="text-sm text-gray-600 mb-1 break-words"
+                    >
                       {log}
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
-          )}
+          )} */}
 
           {/* Final Results */}
           {finalResult && (
@@ -467,7 +508,7 @@ const MeasurementAnalyzer = () => {
               </CardHeader>
               <CardContent>
                 <div className="bg-gray-50 rounded-lg p-6">
-                  <pre className="whitespace-pre-wrap text-gray-800 font-mono text-sm leading-relaxed">
+                  <pre className="whitespace-pre-wrap text-gray-800 font-mono text-sm leading-relaxed overflow-x-auto">
                     {finalResult}
                   </pre>
                 </div>
@@ -480,4 +521,4 @@ const MeasurementAnalyzer = () => {
   );
 };
 
-export default MeasurementAnalyzer;
+export default UploadPage;
